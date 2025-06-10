@@ -1,0 +1,227 @@
+
+
+
+GPT/web -> py -> txt/ipynb/colab
+
+
+The data set, containing 64x64 size 500 image of 43 individuals.
+
+More info:
+# Open and read the file
+import pickle
+import zlib
+
+fpt = "./raw_1_face/"
+
+with open(f'{fpt}data_3.pickle', 'rb') as file:
+    data = pickle.loads(zlib.decompress(file.read()))
+
+print(data['X1'].shape)
+print(data['X2'].shape)
+print(data['y'].shape)
+
+XX = data['X1']
+XX2 = data['X2']
+yy = data['y']
+
+print(yy)
+
+OUTPUT:
+(43, 500, 64, 64, 3)
+(43, 500, 12)
+(43,)
+[0 0 1 0 1 1 0 0 0 0 1 0 0 1 1 1 1 1 0 0 0 1 0 0 1 1 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0]
+
+
+i.e
+image data of shape (43, 500, 64, 64, 3), 64x64 size 500 images for each 43 individuals
+and the labels are in a form of:
+[0 0 1 0 1 1 0 0 0 0 1 0 0 1 1 1 1 1 0 0 0 1 0 0 1 1 0 0 0 0 0 1 1 0 0 0 0 0 0 0 0 0 0]
+The datset has 2 classes 0: happy, 1:unhappy for corresponding 43 people, the lables are:
+
+Our current task/Goal is:
+    # convert the whole dataset with Grayscale image
+    # save the changed dataset in a file using same format, i.e. with correcponding data['X2'] and data['y']
+
+
+
+The image is in rgb color, with black background, i coverted these to grayscale and wite background with [0,1] pixel range.
+
+
+The images in our case is musch more simple. Its just position & shape of eye, eye-brow, upperlip-lowerlip. And these are in same color intensity (grayscaled) for corresponding  eye, eye-brow, upperlip-lowerlip  (i.e. just the shape)
+
+can i use SOM to cluster array of face images of a single individual to detect emotions or other changes? 
+Do i need pre-trained model for this simplified images?
+
+
+
+
+==============    Steps to do: OUTLINE    ==============
+
+Goal 1: projecting high-dimensional data onto a lower-dimensional grid (often 2D)
+            - visually interpret the relationships: Map data to 2D and inspect the relationships
+            - how many clusters exist
+            - how clusters relate to each other
+
+Goal 2: Group the images (rearange the data)
+
+Goal 3: Run a clustering algorithm like k-means or hierarchical clustering on the reduced representation from SOM
+
+
+
+
+How to:
+        - choose learning rate
+        - neighborhood function
+
+
+1. Preprocess the data:
+        - Resize Images: Ensure all face images have a consistent size (e.g., 64x64)
+        - Normalize Pixel Values: Scale pixel intensities to a range of [0, 1]
+        - Convert to Grayscale
+        - Make it same color (variation 2)
+        - flatten image (for simple image: simplified grayscale images representing only the position and shape of eyes, eyebrows, and lips)
+            * Convert each 64x64 image into a 1D vector of size 4096. This makes it compatible with SOM
+
+
+2. Extract Features using CNN (skip for simple image):
+        - Deep Learning Features: Use a pre-trained CNN (e.g., VGG, ResNet) to extract feature embeddings from the images.
+        - Traditional Features: Use methods like Histogram of Oriented Gradients (HOG) or Local Binary Patterns (LBP) to encode texture and patterns.
+
+        Extra (use CNN layer in Prepare Data for SOM):
+                - Flatten or reduce the dimensionality of the extracted features using PCA or t-SNE if needed.
+                - The final input to the SOM should be a matrix where each row is a feature vector representing an image.
+
+
+3. Train the SOM:
+        - Use a SOM implementation (e.g., from MiniSom in Python) to map the feature vectors onto a 2D grid.
+            * Set up SOM:
+            * Visualize the SOM Grid: Each neuron in the grid represents a cluster of similar shapes. You can visualize the grid to see how the data is distributed.
+
+
+4. Cluster the SOM Output:
+        - After training, each image will be assigned to a neuron in the SOM grid.
+        - cluster the neurons using a clustering algorithm like k-means to group similar emotions or changes.
+        - Cluster the SOM Grid
+            * Label Neurons: Assign images to the neuron they are closest to in the SOM. This is essentially clustering based on proximity.
+            * Post-Cluster Analysis:
+                Group images based on their assigned neurons.
+                Analyze if clusters correspond to distinct emotions or expressions (e.g., one cluster for "smile," another for "frown").
+
+
+5 . Interpret Results:
+        - Analyze the clusters to identify patterns in emotions or changes (e.g., clusters of "happy" vs. "sad" images).
+        - Visualize the SOM grid to see how the images are distributed.
+
+
+Enhancements for Better Results
+
+
+Dimensionality Reduction:
+
+If 4096 dimensions (64x64) is too large for the SOM, apply dimensionality reduction like PCA:
+
+
+interpretation:
+Imagine the SOM grid after training:
+
+Top-left neurons might cluster images with "wide-open eyes."
+Bottom-right neurons might group images with "narrowed eyes" and "frowning lips."
+These clusters provide insights into the variations in expressions based on the positions and shapes of facial features.
+
+
+
+
+
+_-_-_-_-_-__-_-_-_-_-_    Alternative Approaches    _-_-_-_-_-__-_-_-_-_-_
+While SOMs can work, they may not be the most efficient or accurate choice for emotion detection. Consider these alternatives:
+
+Convolutional Neural Networks (CNNs):
+    Train a CNN directly to classify emotions in the face images.
+    Example: Fine-tune a pre-trained model like VGGFace or ResNet.
+
+Autoencoders:
+    Use an autoencoder to learn a low-dimensional embedding and cluster the embeddings.
+    Clustering Algorithms:
+    After feature extraction, apply clustering methods like k-means or DBSCAN.
+
+
+Direct Pixel Input:
+    Flatten each image (e.g., 64x64 → 4096-dimensional vector) and use it directly in SOM or clustering.
+    Normalize pixel values between 0 and 1.
+
+Feature Engineering:
+    Extract geometric features such as distances or angles between key points (e.g., between eyebrows or lips).
+    Use edge detection (like Canny) or shape descriptors (like contours) to encode the shapes.
+
+    Example of feature extraction using OpenCV:
+        edges = cv2.Canny(grayscale_image, threshold1=50, threshold2=150)
+
+Dimensionality Reduction:
+    Apply PCA or t-SNE to reduce the dimensionality before using SOM.
+    This will improve computation time and potentially enhance clustering results.
+
+
+Statistical Way:
+
+
+================================================================================================
+Phase 2: Cross identity facial expression grouping:
+================================================================================================
+consider again "cross-identity facial expression grouping", 
+the images are simpler: The images in our case is musch more simple. Its just position & shape of eye, eye-brow, upperlip-lowerlip. And these are in same color intensity (grayscaled) for corresponding  eye, eye-brow, upperlip-lowerlip  (i.e. just the shape)
+
+we've you & I already succed to group individual of index 0 using following code:
+# -------------------------------    SOM    -------------------------------
+person_id = 0
+person_images = data['X1'][person_id]  # Shape (500, 64, 64)
+# Flatten images to 1D vectors (500 samples, 4096 features)
+flat_x1 = person_images.reshape(500, -1)  # Shape (500, 64*64)
+
+print(person_images.shape)
+print(flat_x1.shape)
+
+
+# install minisom
+!pip install minisom
+
+
+#@title -------- Train the SOM --------
+
+from minisom import MiniSom
+
+# Define SOM grid size (e.g., 10x10 for 100 clusters)
+som = MiniSom(10, 10, input_len=flat_x1.shape[1], sigma=1.0, learning_rate=0.5)
+som.random_weights_init(flat_x1)
+som.train_random(flat_x1, num_iteration=1000)
+
+
+# Style 1:
+# som = MiniSom(10, 10, input_len=flat_x1.shape[1], sigma=1.0, learning_rate=0.5)
+# som.random_weights_init(flat_x1)
+
+# The SOM initializes weights randomly each time you run it.
+# Results may vary between different runs.
+# Useful if you want a diverse initialization each time you train.
+
+
+# Style 2:
+# som = MiniSom(10, 10, X_som.shape[1], sigma=1.0, learning_rate=0.5, random_seed=42)
+# The random weight initialization is fixed, meaning every run starts with the same weights.
+# This ensures consistent results, useful for debugging and comparing models.
+
+
+#@title Assign Clusters
+
+import numpy as np
+
+# Map each image to its best-matching SOM node
+cluster_labels = np.array([som.winner(x) for x in flat_x1])
+
+# Unique cluster IDs: Convert node coordinates to unique integers (e.g., (row*10 + col))
+cluster_ids = np.array([row*10 + col for (row, col) in cluster_labels])
+
+Now let's consider next individual, index 1, it has also 500 images (position of eye, eye-brow, upperlip-lowerlip varies due to facial structure ).
+
+Goal is: group new individual's images into previous individuals image clusters by making "face structure independent" and "maintain group order" for both individual?
+
