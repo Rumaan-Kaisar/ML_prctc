@@ -1287,54 +1287,6 @@ def decide_sample_size(group_size):
             return (sample_size, (n - 1) // 2, (n + 1) // 2)
 
 
-# ------------  rev[11-Jul-2025]  ------------
-
-
-import numpy as np
-
-def sample_uniformly(size, num_samples=500):
-    """
-    Just Randomly selects 'num_samples' indices from the dataset in a uniform manner.
-    
-    Args:
-        size: total data points
-        num_samples (int): Number of samples to select (default: 500).
-
-    Returns:
-        sampled_indices
-    """
-
-    # Select 'num_samples' unique indices uniformly without a fixed seed within 'size'
-    sampled_indices = np.random.choice(size, num_samples, replace=False)
-
-    return sampled_indices
-
-
-
-# get data from samples indexes
-def get_sample_data(data_dict, sampled_indices):
-    """  
-    Args:
-        data_dict (dict): Dictionary containing 'feature' and its sub-keys.
-        sampled_indices (list): list of sampled indices
-
-    Retirns: 
-        dict: A new dictionary containing only the sampled data.
-    """
-    # Extract the corresponding samples
-    sampled_data = {
-        'sample': sampled_indices,
-        'feature': {
-            'contours': [data_dict['feature']['contours'][i] for i in sampled_indices],
-            'au': [data_dict['feature']['au'][i] for i in sampled_indices],
-            'landmarks': [data_dict['feature']['landmarks'][i] for i in sampled_indices],
-            'headEulerAngle': [data_dict['feature']['headEulerAngle'][i] for i in sampled_indices],
-            'classification': [data_dict['feature']['classification'][i] for i in sampled_indices],
-        },
-        'ground_truth': data_dict['ground_truth']
-    }
-    return sampled_data
-
 
 # train_data = [(name, dict)], m size list
 # dict = 
@@ -1347,26 +1299,10 @@ def get_sample_data(data_dict, sampled_indices):
         # },
         # 'ground_truth': 0 or 1
 
-som_train = []
-som_prj = []
 
-# do for all train_data and make the lists som_train, som_prj
-for i in train_data:
-    data_size = len(train_data[i][1]['feature']['contours'])
-    total_sample, train_sets, prj_sets = decide_sample_size(data_size)
-
-    for train_sets times:
-        # (data_index, name, sampled_indices)
-        som_train.append((train_data[i][0], sample_uniformly(train_data[i][1])))
-
-    for prj_sets times:
-        # (data_index, name, sampled_indices)
-        som_prj.append((train_data[i][0], sample_uniformly(train_data[i][1])))
-
-
-# --------    GPT output    -------------
 import numpy as np
 
+# make indices for sample
 def sample_uniformly(size, num_samples=500):
     """
     Randomly selects 'num_samples' indices from the dataset in a uniform manner.
@@ -1380,10 +1316,12 @@ def sample_uniformly(size, num_samples=500):
     """
     # Ensure sample size doesn't exceed available data
     num_samples = min(size, num_samples)
+    # Select 'num_samples' unique indices uniformly without a fixed seed within 'size'
     sampled_indices = np.random.choice(size, num_samples, replace=False)
     return sampled_indices
 
 
+# get data from samples indexes
 def get_sample_data(data_dict, sampled_indices):
     """  
     Extracts a subset of data using sampled indices.
@@ -1395,7 +1333,7 @@ def get_sample_data(data_dict, sampled_indices):
     Returns: 
         dict: A new dictionary containing only the sampled data.
     """
-    return {
+    sampled_data = {
         'sample': sampled_indices.tolist(),
         'feature': {
             'contours': [data_dict['feature']['contours'][i] for i in sampled_indices],
@@ -1406,72 +1344,90 @@ def get_sample_data(data_dict, sampled_indices):
         },
         'ground_truth': data_dict['ground_truth']
     }
+    return sampled_data
 
 
-def decide_sample_size(group_size):
-    """
-    Decide sample size and splits based on group size.
-    For group_size > 17,000, compute 15% rounded up to nearest multiple of 500.
 
-    Returns:
-        (int, int, int): (total_sample_size, num_train_chunks, num_prj_chunks)
-    """
-    if 500 <= group_size < 3000:
-        return (500, 1, 0)
-    elif 3000 <= group_size < 5000:
-        return (1000, 1, 1)
-    elif 5000 <= group_size < 7000:
-        return (1500, 1, 2)
-    elif 7000 <= group_size < 8000:
-        return (2000, 2, 2)
-    elif 8000 <= group_size < 11000:
-        return (2500, 2, 3)
-    elif 11000 <= group_size <= 17000:
-        return (3000, 3, 3)
-    elif group_size > 17000:
-        n = round((0.15 * group_size) / 500)
-        if n % 2 == 0:
-            return (500 * n, n // 2, n // 2)
-        else:
-            return (500 * n, (n - 1) // 2, (n + 1) // 2)
-    else:
-        return (0, 0, 0)
+# --- {name: idx} dictionary  ---
+# Build once, after train_data is loaded
+name_to_index = {name: idx for idx, (name, _) in enumerate(train_data)}
+
+def get_index_by_name(name):
+    return name_to_index.get(name, -1)  # or raise an error if you prefer
+
 
 
 # --- Sampling Loop ---
-som_train = []
-som_prj = []
+# store these idx in metadata
+som_train_idx = []
+som_prj_idx = []
 
-for name, data_dict in train_data:
-    data_size = len(data_dict['feature']['contours'])
-    total_sample, num_train, num_prj = decide_sample_size(data_size)
-
-    for _ in range(num_train):
-        indices = sample_uniformly(data_size, 500)
-        som_train.append((name, get_sample_data(data_dict, indices)))
-
-    for _ in range(num_prj):
-        indices = sample_uniformly(data_size, 500)
-        som_prj.append((name, get_sample_data(data_dict, indices)))
-
-
-# another option: lists of tuples like [(name, sampled_indices)]
-som_train = []
-som_prj = []
-
+# lists of tuples like [(name, sampled_indices)]
 for name, data_dict in train_data:
     data_size = len(data_dict['feature']['contours'])
     _, num_train, num_prj = decide_sample_size(data_size)
 
     for _ in range(num_train):
         indices = sample_uniformly(data_size, 500)
-        som_train.append((name, indices.tolist()))
+        som_train_idx.append((name, indices.tolist()))
 
     for _ in range(num_prj):
         indices = sample_uniformly(data_size, 500)
-        som_prj.append((name, indices.tolist()))
+        som_prj_idx.append((name, indices.tolist()))
 
 
+# getting samples using above idx
+som_train_samples = []
+som_prj_samples = []
+
+for name, indices in som_train_idx:
+    data_idx = get_index_by_name(name)
+    nm, dt_dict = train_data[data_idx]
+    som_train_samples.append((name, indices, get_sample_data(dt_dict, indices)))
+    
+for name, indices in som_prj_idx:
+    data_idx = get_index_by_name(name)
+    nm, dt_dict = train_data[data_idx]    
+    som_prj_samples.append((name, indices, get_sample_data(dt_dict, indices)))
+
+
+
+# ------------  rev[12-Jul-2025]  ------------
+# do the same format: 
+    # som_train_contour = [(name, indices, contours_list_list)]
+    # som_train_img = [(name, indices, img_lis)]
+    # som_prj_contour = [(name, indices, contours_list_list)]
+    # som_prj_img = [(name, indices, img_lis)]
+
+    # use  som_train_samples, som_prj_samples to extract the contours
+    # use convert_to_img(contours) to image conversion
+
+som_train_contour = []
+som_train_img = []
+som_prj_contour = []
+som_prj_img = []
+
+for name, indices, sample_dict in som_train_samples:
+    contours_list = sample_dict['feature']['contours']
+    
+    # Store contours
+    som_train_contour.append((name, indices, contours_list))
+    
+    # Convert contours to images
+    img_list = [convert_to_img(contour) for contour in contours_list]
+    som_train_img.append((name, indices, img_list))
+
+
+
+for name, indices, sample_dict in som_prj_samples:
+    contours_list = sample_dict['feature']['contours']
+    
+    # Store contours
+    som_prj_contour.append((name, indices, contours_list))
+    
+    # Convert contours to images
+    img_list = [convert_to_img(contour) for contour in contours_list]
+    som_prj_img.append((name, indices, img_list))
 
 
 
