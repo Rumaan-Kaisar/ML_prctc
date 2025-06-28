@@ -1238,8 +1238,10 @@ print(len(test_data[0][1]['feature']['contours']))
 print(test_data[0][1]['feature']['contours'][0][3])    
 
 
-# =====================================================================================================
 
+
+# =====================================================================================================
+# Step: 1, 2, 3 
 # =====================================================================================================
 
 
@@ -1259,6 +1261,7 @@ print(test_data[0][1]['feature']['contours'][0][3])
 #         ->  corresponding trained SOM file name: SOM file name
 
 
+# Step: 1, 2
 def decide_sample_size(group_size):
     """
     Decide sample size based on group size.
@@ -1375,8 +1378,12 @@ for name, data_dict in train_data:
         indices = sample_uniformly(data_size, 500)
         som_prj_idx.append((name, indices.tolist()))
 
+# Step: 3
+# ----  update "sample metadata" here  ----
+# Store the "som metadata" after SOM & Vector
 
-# getting samples using above idx
+
+# SAMPLE: getting samples using above som_train_idx and som_prj_idx
 som_train_samples = []
 som_prj_samples = []
 
@@ -1392,8 +1399,11 @@ for name, indices in som_prj_idx:
 
 
 
-# ------------  rev[12-Jul-2025]  ------------
-# do the same format: 
+# =====================================================================================================
+# Step: 4, 5, 6, 7, 8
+# =====================================================================================================
+# ----  sample contour and transform to image  ----
+# do the same format using extracted som_train_samples, som_prj_samples: 
     # som_train_contour = [(name, indices, contours_list_list)]
     # som_train_img = [(name, indices, img_lis)]
     # som_prj_contour = [(name, indices, contours_list_list)]
@@ -1404,8 +1414,10 @@ for name, indices in som_prj_idx:
 
 som_train_contour = []
 som_train_img = []
+
 som_prj_contour = []
 som_prj_img = []
+
 
 for name, indices, sample_dict in som_train_samples:
     contours_list = sample_dict['feature']['contours']
@@ -1428,6 +1440,438 @@ for name, indices, sample_dict in som_prj_samples:
     # Convert contours to images
     img_list = [convert_to_img(contour) for contour in contours_list]
     som_prj_img.append((name, indices, img_list))
+
+
+
+# ------------  rev[22-Jul-2025]  ------------
+# ----  train SOM & generate vector  ----
+
+
+
+# ------------ Convert-V2: Grayscale Dataset ------------
+
+import pickle
+import zlib
+import numpy as np
+from skimage.color import rgb2gray
+
+# File path
+fpt = "./raw_1_face/"
+
+# Load the dataset
+with open(f'{fpt}data_3.pickle', 'rb') as file:
+    data = pickle.loads(zlib.decompress(file.read()))
+
+# Extract the data
+X1 = data['X1']  # (43, 500, 64, 64, 3)
+X2 = data['X2']  # (43, 500, 12)
+y = data['y']    # (43,)
+
+# Convert RGB images to grayscale
+# The grayscale images will have shape (43, 500, 64, 64)
+X1_gray = np.array([[rgb2gray(img) for img in person] for person in X1])
+
+# Prepare the new dataset
+new_data = {
+    'X1': X1_gray,
+    'X2': X2,
+    'y': y
+}
+
+# Save the modified dataset back to a file
+with open(f'{fpt}data_3_grayscale.pickle', 'wb') as file:
+    file.write(zlib.compress(pickle.dumps(new_data)))
+
+print("Dataset successfully converted to grayscale and saved!")
+
+
+
+#@title -------- Load Data --------
+
+import pickle
+import zlib
+
+fpt = "./raw_1_face/"
+
+with open(f'{fpt}data_3_grayscale.pickle', 'rb') as file:
+    data = pickle.loads(zlib.decompress(file.read()))
+
+print(f"X1 shape: {data['X1'].shape}")
+print(f"X2 shape: {data['X2'].shape}")
+print(f"y shape: {data['y'].shape}")
+
+XX = data['X1']
+XX2 = data['X2']
+yy = data['y']
+
+print(f"\n\nLabels: \n 0 = healty \n 1 = depressed: \n {yy}")
+
+
+
+
+#@title -------- Visualize data --------
+
+import matplotlib.pyplot as plt
+
+# Visualize grayscale images for a selected individual
+def visualize_images(data, individual_index=0, num_images=10):
+    """
+    Visualize grayscale images for a specific individual from the dataset.
+
+    Parameters:
+    - data: The dataset dictionary with keys 'X1', 'X2', and 'y'
+    - individual_index: Index of the individual to visualize
+    - num_images: Number of images to visualize for the selected individual
+    """
+    X1_gray = data['X1']
+    label = data['y'][individual_index]
+
+    # Extract images for the selected individual
+    images = X1_gray[individual_index][:num_images]
+
+    # Plot the images
+    plt.figure(figsize=(15, 5))
+    for i, img in enumerate(images):
+        plt.subplot(1, num_images, i + 1)
+        plt.imshow(img, cmap='gray')
+        plt.axis('off')
+        plt.title(f"Image {i+1}")
+
+    plt.suptitle(f"Individual {individual_index} (Label: {'Happy' if label == 0 else 'Unhappy'})", fontsize=16)
+    plt.show()
+
+# Load the grayscale dataset
+with open(f'{fpt}data_3_grayscale.pickle', 'rb') as file:
+    gray_data = pickle.loads(zlib.decompress(file.read()))
+
+# Visualize images for individual 0 (first individual)
+visualize_images(gray_data, individual_index=0, num_images=10)
+
+
+
+
+#@title -------- check gray-scale --------
+
+X1_gray = data['X1']
+
+# Examin the values
+print(f"{X1_gray.shape}\n")
+print(f"{X1_gray[0][0][0]}\n")
+print(f"{X1_gray[0][0][21]}\n")
+print(f"{X1_gray[0][0][32]}\n")
+print(f"{X1_gray[0][0][48]}\n")
+print(f"{X1_gray[0][0][63]}\n")
+
+# Check if Normalization is Needed:
+    # Normalize if the range is [0, 255].
+    # Skip normalization if the values are already in [0, 1].
+print(f"Min value: {X1_gray.min()}, Max value: {X1_gray.max()}")
+
+
+
+
+# --------  install minisom  --------
+!pip install minisom
+
+# libraries
+import numpy as np
+from minisom import MiniSom
+
+
+
+
+#@title -------- Train the Uni-Ref-SOM --------
+
+# ------------------------  PART 1: split data & train a referance SOM   ------------------------
+# PART 1 GOAL: Combine all images (40 individuals × 500 = 20,000 images) and train a SOM to define universal clusters.
+
+# Here "Split whole data set" at final phase
+
+# Exclude the first 3 individuals (take individuals from index 3 to 42)
+selected_images = data['X1'][3:]  # Shape (40, 500, 64, 64)
+
+# Reshape to (20000, 64, 64)
+all_images = selected_images.reshape(-1, 64, 64)
+
+# Flatten to (20000, 64*64)
+flat_all = all_images.reshape(20000, -1)
+
+
+print(all_images.shape)
+print(flat_all.shape)
+
+
+# --------  Train universal SOM (e.g., 10x10 grid = 100 clusters)  --------
+# "size" & "iteration" fixing for SOM neuron (TUNING 1):
+
+# size: we set 11x11, considering 500 sample size for each individual
+    #   i.e. 121 clusters for 500 individual, 1 node for 4 data-point
+    #   because our goal was making a SOM for each sample of 500 data.
+    #   5*sqrt(500) = 5*22.4 = 112 : 11*11 or 10*10
+
+# iterations: we set initially 3000 (took 10s train), 7000(23s), 10000(36s), 60500 (240s), 70000(300s), 85000(347), 100000(400s)
+
+som_universal = MiniSom(11, 11, input_len=flat_all.shape[1], sigma=1.0, learning_rate=0.5, random_seed=42)
+som_universal.train_random(flat_all, num_iteration=100000)
+# we used "random_seed=42" so that random weight initialization is fixed
+
+#@title Assign Clusters
+
+# ------------------------  PART 2: Project samples onto the Universal SOM   ------------------------
+# PART 2 GOAL:
+    # 1.    Project Individual Images onto the Universal SOM
+    # 2.    Create a probability vector (stochastic vector) for each individual based on the number of images assigned to each cluster.
+
+
+# Project Individual Images onto the Universal SOM
+    # For each individual, map their images to the universal SOM's nodes to ensure consistent group labels.
+
+def assign_clusters(images, som):
+    # Flatten images (shape: 500, 64, 64) -> (500, 4096)
+    flat_img = images.reshape(500, -1)
+
+    # Assign clusters using the universal SOM (map each image to its best-matching SOM node)
+    cluster_labels = np.array([som.winner(x) for x in flat_img])
+    # Unique cluster IDs: Convert node coordinates to unique integers (e.g., (row*11 + col))
+        # for 11x11 som the formula is: row * 11 + col
+    cluster_ids = np.array([row * 11 + col for (row, col) in cluster_labels])
+
+    # If your SOM size changes dynamically, use:
+    # grid_size_x = som.x  # Number of columns
+    # cluster_ids = np.array([row * grid_size_x + col for (row, col) in cluster_labels])
+
+    # or
+    # cluster_ids = np.array([row * som.x + col for (row, col) in cluster_labels])
+
+    return cluster_ids
+
+
+# NOTE: for a single input x, som.winner(x) returns only one pair of coordinates (row, col)
+    # So cluster_labels in our code is a "list of (x, y) coordinate pairs", where:
+        # x represents the "row index" of the SOM grid.
+        # y represents the "column index" of the SOM grid.
+
+
+# Assign clusters for individual 4
+person4_images = data['X1'][4]      # Shape (500, 64, 64)
+person4_clusters_ids = assign_clusters(person4_images, som_universal)
+
+# Assign clusters for individual 5
+person5_images = data['X1'][5]      # Shape (500, 64, 64)
+person5_clusters_ids = assign_clusters(person5_images, som_universal)
+
+
+# Analyze Cluster Consistency
+    # Check if the clusters for individual 4 align with those for individual 5
+    # Visualize the clusters to ensure they group similar expressions across individuals.
+
+import matplotlib.pyplot as plt
+
+# Visualize cluster assignments for individual 0
+plt.hist(person4_clusters_ids, bins=100, alpha=0.5, label='Person 4')
+plt.hist(person5_clusters_ids, bins=100, alpha=0.5, label='Person 5')
+plt.xlabel('Cluster ID')
+plt.ylabel('Frequency')
+plt.legend()
+plt.show()
+
+
+
+
+# ==================    vizualization    ===============================
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Unique colors for each person (red tint for Person 4, blue tint for Person 5)
+# person 4's index is 3,  and person 5's index is 4
+color_maps = {3: 'Reds', 4: 'Blues'}  # Individual 4 → Red, Individual 5 → Blue
+
+# Store data separately for each person
+individuals = {3: person4_images, 4: person5_images}
+individual_cluster_ids = {3: person4_clusters_ids, 4: person5_clusters_ids}
+
+# Define the total number of possible clusters (e.g., 121 for an 11x11 SOM)
+n_possible_clusters = 121
+num_persons = len(individuals)
+
+# Step 1: Compute Prototypes & Cluster Data for Each Person for ALL possible clusters
+prototypes = {}         # keys: (person_id, cluster_id)
+cluster_counts = {}     # keys: (person_id, cluster_id)
+cluster_images_dict = {}  # keys: (person_id, cluster_id)
+
+for person_id in individuals:
+    images = individuals[person_id]
+    cluster_ids = individual_cluster_ids[person_id]
+    # Determine image shape from the first image (assumes at least one image exists)
+    image_shape = images[0].shape
+
+    for cluster_id in range(n_possible_clusters):
+        key = (person_id, cluster_id)
+        # Check if this cluster exists in the current person's data
+        if cluster_id in np.unique(cluster_ids):
+            cluster_imgs = images[cluster_ids == cluster_id]
+            prototype = np.mean(cluster_imgs, axis=0)
+            prototypes[key] = prototype
+            cluster_counts[key] = len(cluster_imgs)
+            cluster_images_dict[key] = cluster_imgs
+        else:
+            # For empty clusters, assign an empty (all-zero) image
+            prototypes[key] = np.zeros(image_shape)
+            cluster_counts[key] = 0
+            cluster_images_dict[key] = np.empty((0, *image_shape))
+
+# Determine maximum number of images in any cluster across all individuals
+max_n = max(cluster_counts.values()) if cluster_counts else 0
+
+# Total columns: each cluster has one column per person
+total_columns = n_possible_clusters * num_persons
+total_rows = max_n + 1  # First row for prototypes
+
+# Create a grid for visualization (adjust figsize as needed)
+# To increase the size of the images in the visualization, modify the "figsize" parameter in the plt.subplots() function.
+# currently 0.5 -> 2
+fig, axes = plt.subplots(total_rows, total_columns, figsize=(total_columns * 2, total_rows * 2))
+
+# Step 2: Visualize: For each possible cluster, show each person's prototype and images side by side
+for cluster_id in range(n_possible_clusters):
+    for person_id in range(num_persons):
+        col_idx = cluster_id * num_persons + person_id
+        key = (person_id, cluster_id)
+        cmap = color_maps[person_id]
+
+        # Plot prototype in the first row
+        axes[0, col_idx].imshow(prototypes[key], cmap=cmap)
+        count = cluster_counts[key]
+        axes[0, col_idx].set_title(f'P{person_id} C{cluster_id}\n(n={count})', fontsize=6)
+        axes[0, col_idx].axis('off')
+
+        # Plot each image below the prototype (or an empty image if none available)
+        cluster_imgs = cluster_images_dict[key]
+        for row_idx in range(max_n):
+            ax = axes[row_idx + 1, col_idx]
+            if row_idx < count:
+                ax.imshow(cluster_imgs[row_idx], cmap=cmap)
+            else:
+                ax.imshow(np.zeros_like(prototypes[key]), cmap=cmap)
+            ax.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+# ===============    probability (stochastic) vector    ===============
+
+# probability_vectors contains the probability vector for each individual.
+# Note: cluster_ids and person_clusters represent the same data: the cluster assignment for each image of a person.
+
+
+import numpy as np
+
+def compute_probability_vector(cluster_ids, n_clusters):
+    """
+    Compute both the normalized probability vector and the raw counts vector for an individual based on 
+    the number of images assigned to each cluster (from 0 to n_clusters-1).
+    
+    Parameters:
+    - cluster_ids: a NumPy array of cluster IDs assigned to each image.
+    - n_clusters: total number of possible clusters (e.g., 121 for an 11x11 SOM).
+    
+    Returns:
+    - probability_vector: normalized counts (stochastic vector) of length n_clusters.
+    - counts_vector: raw counts for each cluster, of length n_clusters.
+    """
+    sample_size = len(cluster_ids)  # Dynamic sample size
+    counts_vector = np.zeros(n_clusters)  # Initialize raw counts with zeros for all clusters
+    unique, counts = np.unique(cluster_ids, return_counts=True)  # Get unique cluster IDs and counts (Count occurrences per cluster)
+    counts_vector[unique] = counts  # Assign counts to corresponding clusters (indices)
+    probability_vector = counts_vector / sample_size  # Normalize by the sample size
+    return probability_vector, counts_vector
+
+# Define number of clusters for an 11x11 SOM
+n_clusters = 11 * 11  # 121 clusters
+
+# Dictionaries to store "probability vectors" and "raw counts" for each individual (excluding the first 3)
+probability_vectors = {}
+raw_counts_vectors = {}
+
+# Loop over individuals from index 4 onward (excluding first 3)
+for person_id in range(3, len(data['X1'])):
+    person_images = data['X1'][person_id]  # Get individual's images
+    person_clusters = assign_clusters(person_images, som_universal)  # Get cluster assignments for that individual
+    
+    # Compute probability and raw counts vectors
+    prob_vec, counts_vec = compute_probability_vector(person_clusters, n_clusters)
+    
+    # Store in separate dictionaries
+    probability_vectors[person_id] = {'label': data['y'][person_id], 'prob_vector': prob_vec}
+    raw_counts_vectors[person_id] = counts_vec
+
+
+
+# ===============    save the trained SOM & vectors    ===============
+import pickle
+
+# Save the trained SOM to a file
+with open('trained_som.pkl', 'wb') as f:
+    pickle.dump(som_universal, f)
+
+print("Trained SOM has been saved to 'trained_som.pkl'.")
+
+
+# Save the probability_vectors dictionary to a file
+with open('probability_vectors.pkl', 'wb') as f:
+    pickle.dump(probability_vectors, f)
+
+print("Probability vectors have been saved to 'probability_vectors.pkl'.")
+
+
+# opening
+with open('trained_som.pkl', 'rb') as f:
+    som_universal = pickle.load(f)
+
+with open('probability_vectors.pkl', 'rb') as f:
+    probability_vectors = pickle.load(f)
+
+
+
+#@title ===============    Load the SOM model and probability vector    ===============
+import pickle
+
+# Load the trained SOM model and probability vectors
+with open('trained_som.pkl', 'rb') as f:
+    som_universal = pickle.load(f)
+
+with open('probability_vectors.pkl', 'rb') as f:
+    probability_vectors = pickle.load(f)
+
+
+# Preview loaded SOM model (Checking dimensions and attributes)
+print(f"SOM Model Loaded: {som_universal}")
+print(f"SOM Grid Size: {som_universal._weights.shape[:2]}")  # Assuming _weights stores the SOM structure
+
+
+# Preview probability vectors
+print("\n=== Preview of Probability Vectors ===")
+for person_id, data in list(probability_vectors.items()):
+    print(f"Person {person_id}: Label = {data['label']}, Prob Vector (first 10) = {data['prob_vector'][:10]}")
+    print(f"Min value: {data['prob_vector'].min()}, Max value: {data['prob_vector'].max()}")
+    print(f"sum: {data['prob_vector'].sum()}")
+    
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
