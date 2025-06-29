@@ -1427,7 +1427,11 @@ for name, indices, sample_dict in som_train_samples:
     
     # Convert contours to images
     img_list = [convert_to_img(contour) for contour in contours_list]
-    som_train_img.append((name, indices, img_list))
+    # som_train_img.append((name, indices, img_list))
+
+    # Convert RGB images to grayscale
+    gray_list = [rgb2gray(np.array(img)) for img in img_list]  # convert_to_img likely returns PIL or RGB arrays
+    som_train_img.append((name, indices, gray_list))
 
 
 
@@ -1439,7 +1443,11 @@ for name, indices, sample_dict in som_prj_samples:
     
     # Convert contours to images
     img_list = [convert_to_img(contour) for contour in contours_list]
-    som_prj_img.append((name, indices, img_list))
+    # som_prj_img.append((name, indices, img_list))
+
+    # Convert RGB images to grayscale
+    gray_list = [rgb2gray(np.array(img)) for img in img_list]  # convert_to_img likely returns PIL or RGB arrays
+    som_prj_img.append((name, indices, gray_list))
 
 
 
