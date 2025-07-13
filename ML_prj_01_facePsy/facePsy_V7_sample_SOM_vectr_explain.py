@@ -581,6 +581,9 @@ sampled_data = {
 # ========  FIG 1: only eye-lip  ========
 from PIL import Image, ImageDraw
 
+# Define image size
+image_size = 64
+
 def convert_to_img(X):
     x_coords = np.array([point['x'] for point in X])
     y_coords = np.array([point['y'] for point in X])
@@ -1411,6 +1414,7 @@ for name, indices in som_prj_idx:
 
     # use  som_train_samples, som_prj_samples to extract the contours
     # use convert_to_img(contours) to image conversion
+from skimage.color import rgb2gray
 
 som_train_contour = []
 som_train_img = []
@@ -1451,162 +1455,38 @@ for name, indices, sample_dict in som_prj_samples:
 
 
 
-# ------------  rev[22-Jul-2025]  ------------
-# ----  train SOM & generate vector  ----
+# ------------  try in Colab: untested [13-Jul-2025]  ------------
 
+#@title -------- Train the Uni-Ref-SOM --------
 
-
-# ------------ Convert-V2: Grayscale Dataset ------------
-
-import pickle
-import zlib
-import numpy as np
-from skimage.color import rgb2gray
-
-# File path
-fpt = "./raw_1_face/"
-
-# Load the dataset
-with open(f'{fpt}data_3.pickle', 'rb') as file:
-    data = pickle.loads(zlib.decompress(file.read()))
-
-# Extract the data
-X1 = data['X1']  # (43, 500, 64, 64, 3)
-X2 = data['X2']  # (43, 500, 12)
-y = data['y']    # (43,)
-
-# Convert RGB images to grayscale
-# The grayscale images will have shape (43, 500, 64, 64)
-X1_gray = np.array([[rgb2gray(img) for img in person] for person in X1])
-
-# Prepare the new dataset
-new_data = {
-    'X1': X1_gray,
-    'X2': X2,
-    'y': y
-}
-
-# Save the modified dataset back to a file
-with open(f'{fpt}data_3_grayscale.pickle', 'wb') as file:
-    file.write(zlib.compress(pickle.dumps(new_data)))
-
-print("Dataset successfully converted to grayscale and saved!")
-
-
-
-#@title -------- Load Data --------
-
-import pickle
-import zlib
-
-fpt = "./raw_1_face/"
-
-with open(f'{fpt}data_3_grayscale.pickle', 'rb') as file:
-    data = pickle.loads(zlib.decompress(file.read()))
-
-print(f"X1 shape: {data['X1'].shape}")
-print(f"X2 shape: {data['X2'].shape}")
-print(f"y shape: {data['y'].shape}")
-
-XX = data['X1']
-XX2 = data['X2']
-yy = data['y']
-
-print(f"\n\nLabels: \n 0 = healty \n 1 = depressed: \n {yy}")
-
-
-
-
-#@title -------- Visualize data --------
-
-import matplotlib.pyplot as plt
-
-# Visualize grayscale images for a selected individual
-def visualize_images(data, individual_index=0, num_images=10):
-    """
-    Visualize grayscale images for a specific individual from the dataset.
-
-    Parameters:
-    - data: The dataset dictionary with keys 'X1', 'X2', and 'y'
-    - individual_index: Index of the individual to visualize
-    - num_images: Number of images to visualize for the selected individual
-    """
-    X1_gray = data['X1']
-    label = data['y'][individual_index]
-
-    # Extract images for the selected individual
-    images = X1_gray[individual_index][:num_images]
-
-    # Plot the images
-    plt.figure(figsize=(15, 5))
-    for i, img in enumerate(images):
-        plt.subplot(1, num_images, i + 1)
-        plt.imshow(img, cmap='gray')
-        plt.axis('off')
-        plt.title(f"Image {i+1}")
-
-    plt.suptitle(f"Individual {individual_index} (Label: {'Happy' if label == 0 else 'Unhappy'})", fontsize=16)
-    plt.show()
-
-# Load the grayscale dataset
-with open(f'{fpt}data_3_grayscale.pickle', 'rb') as file:
-    gray_data = pickle.loads(zlib.decompress(file.read()))
-
-# Visualize images for individual 0 (first individual)
-visualize_images(gray_data, individual_index=0, num_images=10)
-
-
-
-
-#@title -------- check gray-scale --------
-
-X1_gray = data['X1']
-
-# Examin the values
-print(f"{X1_gray.shape}\n")
-print(f"{X1_gray[0][0][0]}\n")
-print(f"{X1_gray[0][0][21]}\n")
-print(f"{X1_gray[0][0][32]}\n")
-print(f"{X1_gray[0][0][48]}\n")
-print(f"{X1_gray[0][0][63]}\n")
-
-# Check if Normalization is Needed:
-    # Normalize if the range is [0, 255].
-    # Skip normalization if the values are already in [0, 1].
-print(f"Min value: {X1_gray.min()}, Max value: {X1_gray.max()}")
-
-
-
-
-# --------  install minisom  --------
+# --------  Install minisom if not already installed  --------
 !pip install minisom
 
-# libraries
+# Imports
 import numpy as np
 from minisom import MiniSom
 
 
+# ------------------------  PART 1: train a reference SOM   ------------------------
 
+# GOAL: Extract and combine all grayscale images from som_train_img
+#       Combine all images (49 items × 500 = 24,500 images) and train a SOM to define universal clusters.
+# Format: som_train_img = [(name, indices, [img1, img2, ..., img500]), ...]
 
-#@title -------- Train the Uni-Ref-SOM --------
+# Step 1: Flatten the grayscale image data (64x64) to 1D vectors (4096)
+flat_all = []
 
-# ------------------------  PART 1: split data & train a referance SOM   ------------------------
-# PART 1 GOAL: Combine all images (40 individuals × 500 = 20,000 images) and train a SOM to define universal clusters.
+for name, indices, gray_images in som_train_img:
+    for img in gray_images:
+        flat_all.append(img.reshape(-1))  # shape becomes (4096,)
 
-# Here "Split whole data set" at final phase
+# Convert to NumPy array
+flat_all = np.array(flat_all)  # shape: (total_samples, 4096)
 
-# Exclude the first 3 individuals (take individuals from index 3 to 42)
-selected_images = data['X1'][3:]  # Shape (40, 500, 64, 64)
+# Optional: Check shapes
+print("Total samples:", len(flat_all))
+print("Each image vector shape:", flat_all.shape)
 
-# Reshape to (20000, 64, 64)
-all_images = selected_images.reshape(-1, 64, 64)
-
-# Flatten to (20000, 64*64)
-flat_all = all_images.reshape(20000, -1)
-
-
-print(all_images.shape)
-print(flat_all.shape)
 
 
 # --------  Train universal SOM (e.g., 10x10 grid = 100 clusters)  --------
@@ -1620,7 +1500,7 @@ print(flat_all.shape)
 # iterations: we set initially 3000 (took 10s train), 7000(23s), 10000(36s), 60500 (240s), 70000(300s), 85000(347), 100000(400s)
 
 som_universal = MiniSom(11, 11, input_len=flat_all.shape[1], sigma=1.0, learning_rate=0.5, random_seed=42)
-som_universal.train_random(flat_all, num_iteration=100000)
+som_universal.train_random(flat_all, num_iteration=123000)
 # we used "random_seed=42" so that random weight initialization is fixed
 
 #@title Assign Clusters
@@ -1660,14 +1540,28 @@ def assign_clusters(images, som):
         # y represents the "column index" of the SOM grid.
 
 
-# Assign clusters for individual 4
-person4_images = data['X1'][4]      # Shape (500, 64, 64)
-person4_clusters_ids = assign_clusters(person4_images, som_universal)
+# @title --------  cluster assign  --------
+# Task: 
+    # get the clusters for each of 49 items also 
+    # group the index of image according to clusters -> find the group of original indices
+    # use "sampled indices"
 
-# Assign clusters for individual 5
-person5_images = data['X1'][5]      # Shape (500, 64, 64)
-person5_clusters_ids = assign_clusters(person5_images, som_universal)
+# we'll test index 2 and 3 (i.e. items 3 & 4)
+# dt_1_P08_0    [5726, 4170, 3715, 4093, 371, 4089, 4741, 3379, 3143, 3534]
+# dt_4_P12_1    [1624, 1025, 474, 918, 75, 2018, 1374, 1593, 1686, 147]
 
+# Assign clusters for item 3
+print(f"{som_train_img[2][0]}\t{som_train_img[2][1][:10]}")
+item3_images = som_train_img[2][2]      # Shape (500, 64, 64)
+item3_clusters_ids = assign_clusters(item3_images, som_universal)
+
+# Assign clusters for item 4
+print(f"{som_train_img[3][0]}\t{som_train_img[3][1][:10]}")
+item4_images = som_train_img[3][2]      # Shape (500, 64, 64)
+item4_clusters_ids = assign_clusters(item4_images, som_universal)
+
+
+# --------  rev[13-Jul-2025]  --------
 
 # Analyze Cluster Consistency
     # Check if the clusters for individual 4 align with those for individual 5
