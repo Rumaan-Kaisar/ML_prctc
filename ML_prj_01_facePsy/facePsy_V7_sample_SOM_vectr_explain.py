@@ -1570,8 +1570,8 @@ item4_clusters_ids = assign_clusters(item4_images, som_universal)
 import matplotlib.pyplot as plt
 
 # Visualize cluster assignments for individual 0
-plt.hist(person4_clusters_ids, bins=100, alpha=0.5, label='Person 4')
-plt.hist(person5_clusters_ids, bins=100, alpha=0.5, label='Person 5')
+plt.hist(item3_clusters_ids, bins=100, alpha=0.5, label='Person 4')
+plt.hist(item4_clusters_ids, bins=100, alpha=0.5, label='Person 5')
 plt.xlabel('Cluster ID')
 plt.ylabel('Frequency')
 plt.legend()
@@ -1590,8 +1590,8 @@ import matplotlib.pyplot as plt
 color_maps = {3: 'Reds', 4: 'Blues'}  # Individual 4 → Red, Individual 5 → Blue
 
 # Store data separately for each person
-individuals = {3: person4_images, 4: person5_images}
-individual_cluster_ids = {3: person4_clusters_ids, 4: person5_clusters_ids}
+individuals = {3: item3_images, 4: item4_images}
+individual_cluster_ids = {3: item3_clusters_ids, 4: item4_clusters_ids}
 
 # Define the total number of possible clusters (e.g., 121 for an 11x11 SOM)
 n_possible_clusters = 121
@@ -1764,7 +1764,81 @@ for person_id, data in list(probability_vectors.items()):
     
 
 
+# adjusted like below:
+"""  
+                    Now here comes the fun part. Remember the structure of som_train_img? 
+                        We can now drop the images and store only the cluster_ids, 
+                        since we have the real image IDs.
 
+                    now we'll do this for both som_train_img and som_prj_img parts
+
+                    then we calculate the probability vectors (total 49+52, save the different 2d array)
+
+                    save the som too.
+
+
+                    So the new data format to save in file:
+                    som_trained_data = {
+                        'train_clustr': array of (name, real_500_idx, cluster_ids_500),
+                        'prj_clustr': array of (name, real_500_idx, cluster_ids_500),
+                        'pob_vec_train': probability_vectors,
+                        'pob_vec_prj': probability_vectors,
+                        'som_model': som_universal
+                    }
+
+"""
+
+
+# Updated Code (post-SOM training, keep simple):
+
+import pickle
+import numpy as np
+
+# -------- Convert som_train_img and som_prj_img to only cluster info --------
+
+def convert_img_list_to_cluster_data(img_list, som_model):
+    result = []
+    for name, real_idx, images in img_list:
+        cluster_ids = assign_clusters(images, som_model)
+        result.append((name, real_idx, cluster_ids))
+    return result
+
+# Apply to both training and projection sets
+train_cluster_data = convert_img_list_to_cluster_data(som_train_img, som_universal)
+prj_cluster_data = convert_img_list_to_cluster_data(som_prj_img, som_universal)
+
+
+# -------- Compute probability vectors for each individual --------
+# use a list of tuples:     prob_vectors = [(name, prob_vec)]
+
+def compute_all_probability_vectors(cluster_data, total_clusters=121):
+    prob_vectors = []  # List of (name, prob_vector) tuples
+    for name, real_indices, cluster_ids in cluster_data:
+        prob_vec, _ = compute_probability_vector(cluster_ids, total_clusters)
+        prob_vectors.append((name, prob_vec))
+    return prob_vectors
+
+
+# Compute separately for train and projection sets
+prob_vec_train = compute_all_probability_vectors(train_cluster_data, n_clusters)
+prob_vec_prj = compute_all_probability_vectors(prj_cluster_data, n_clusters)
+
+
+# -------- Save all in one dictionary --------
+
+som_trained_data = {
+    'train_clustr': train_cluster_data,          # list of (name, real_500_idx, cluster_ids)
+    'prj_clustr': prj_cluster_data,
+    'pob_vec_train': prob_vec_train,
+    'pob_vec_prj': prob_vec_prj,
+    'som_model': som_universal
+}
+
+# Save to file
+with open('som_trained_data.pkl', 'wb') as f:
+    pickle.dump(som_trained_data, f)
+
+print("✅ SOM, clusters, and probability vectors saved to 'som_trained_data.pkl'")
 
 
 
